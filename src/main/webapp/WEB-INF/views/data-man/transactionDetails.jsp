@@ -22,6 +22,12 @@
 <script type="text/javascript">
     $(document).ready(function() {
         <%@ include file="../snippets/sortable.js" %>
+            const energyCell = $("#transaction-energy");
+            const startValue = Number(energyCell.data("startValue"));
+            const stopValue = Number(energyCell.data("stopValue"));
+            if (Number.isFinite(startValue) && Number.isFinite(stopValue)) {
+                energyCell.text(((stopValue - startValue) / 1000).toFixed(3) + " kWh");
+            }
     });
 </script>
 <div class="content"><div>
@@ -37,6 +43,7 @@
             <tr><td>Start Value</td><td>${details.transaction.startValue}</td></tr>
             <tr><td>Stop Date/Time</td><td>${details.transaction.stopTimestamp}</td></tr>
             <tr><td>Stop Value</td><td>${details.transaction.stopValue}</td></tr>
+            <tr><td>Energy Difference</td><td id="transaction-energy" data-start-value="${details.transaction.startValue}" data-stop-value="${details.transaction.stopValue}"></td></tr>
             <tr><td>Stop Reason</td><td><encode:forHtml value="${details.transaction.stopReason}" /></td></tr>
             <tr><td>Stop Event Actor</td><td>${details.transaction.stopEventActor}</td></tr>
         </table>

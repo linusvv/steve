@@ -25,6 +25,13 @@
         <%@ include file="../snippets/dateTimePicker-past.js" %>
         <%@ include file="../snippets/periodTypeSelect.js" %>
         <%@ include file="../snippets/sortable.js" %>
+        $(".transaction-energy").each(function() {
+            const startValue = Number($(this).data("startValue"));
+            const stopValue = Number($(this).data("stopValue"));
+            if (Number.isFinite(startValue) && Number.isFinite(stopValue)) {
+                $(this).text(((stopValue - startValue) / 1000).toFixed(3) + " kWh");
+            }
+        });
     });
 </script>
 <div class="content">
@@ -109,6 +116,7 @@ Transactions
                 <th data-sort="int">Start Value</th>
                 <th data-sort="date">Stop Date/Time</th>
                 <th data-sort="int">Stop Value</th>
+                <th data-sort="float">Energy Difference</th>
                 <th></th>
             </tr>
         </thead>
@@ -124,6 +132,7 @@ Transactions
                 <td>${ta.startValue}</td>
                 <td data-sort-value="${ta.stopTimestamp.millis}">${ta.stopTimestampFormatted}</td>
                 <td>${ta.stopValue}</td>
+                <td class="transaction-energy" data-start-value="${ta.startValue}" data-stop-value="${ta.stopValue}"></td>
                 <td>
                     <c:if test="${empty ta.stopValue}">
                         <form:form action="${ctxPath}/manager/transactions/stop/${ta.id}">
