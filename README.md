@@ -1,5 +1,7 @@
 ![SteVe](src/main/webapp/static/images/logo.png) 
 
+Change in this Fork: Added kWh Column in Transaction Screen
+
 [![build and run tests](https://github.com/steve-community/steve/actions/workflows/main.yml/badge.svg)](https://github.com/steve-community/steve/actions/workflows/main.yml)
 
 SteVe started its life at the RWTH Aachen University [in 2013](https://github.com/steve-community/steve/issues/827). 
