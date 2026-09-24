@@ -19,10 +19,10 @@
 package de.rwth.idsg.steve.ocpp.ws;
 
 import com.google.common.base.Strings;
+import de.rwth.idsg.steve.messaging.Messaging;
 import de.rwth.idsg.steve.ocpp.OcppTransport;
 import de.rwth.idsg.steve.ocpp.OcppVersion;
 import de.rwth.idsg.steve.ocpp.ws.data.CommunicationContext;
-import de.rwth.idsg.steve.ocpp.ws.pipeline.IncomingPipeline;
 import de.rwth.idsg.steve.ocpp.ws.pipeline.OcppCallHandler;
 import de.rwth.idsg.steve.repository.OcppServerRepository;
 import de.rwth.idsg.steve.service.notification.OcppStationWebSocketConnected;
@@ -30,6 +30,7 @@ import de.rwth.idsg.steve.service.notification.OcppStationWebSocketDisconnected;
 import lombok.RequiredArgsConstructor;
 import org.joda.time.DateTime;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.BinaryMessage;
 import org.springframework.web.socket.CloseStatus;
@@ -39,6 +40,8 @@ import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketMessage;
 import org.springframework.web.socket.WebSocketSession;
 
+import java.time.Instant;
+import java.io.IOException;
 import java.util.List;
 
 /**
@@ -55,7 +58,7 @@ public class WebSocketEndpoint extends ConcurrentWebSocketHandler implements Sub
     private final OcppServerRepository ocppServerRepository;
     private final SessionContextStoreHolder sessionContextStoreHolder;
     private final ApplicationEventPublisher applicationEventPublisher;
-    private final IncomingPipeline incomingPipeline;
+    private final Messaging.In.Producer inProducer;
 
     @Override
     public List<String> getSubProtocols() {
@@ -65,22 +68,16 @@ public class WebSocketEndpoint extends ConcurrentWebSocketHandler implements Sub
     }
 
     @Override
-    public void onMessage(WebSocketSession session, WebSocketMessage<?> message) throws Exception {
-        if (message instanceof TextMessage textMessage) {
-            handleTextMessage(session, textMessage);
-
-        } else if (message instanceof PongMessage) {
-            handlePongMessage(session);
-
-        } else if (message instanceof BinaryMessage) {
-            session.close(CloseStatus.NOT_ACCEPTABLE.withReason("Binary messages not supported"));
-
-        } else {
-            throw new IllegalStateException("Unexpected WebSocket message type: " + message);
+    public void onMessage(WebSocketSession session, WebSocketMessage<?> message) {
+        switch (message) {
+            case TextMessage textMessage -> handleTextMessage(session, textMessage);
+            case PongMessage _ -> handlePongMessage(session);
+            case BinaryMessage _ -> handleBinaryMessage(session);
+            default -> throw new IllegalStateException("Unexpected WebSocket message type: " + message);
         }
     }
 
-    private void handleTextMessage(WebSocketSession session, TextMessage webSocketMessage) throws Exception {
+    private void handleTextMessage(WebSocketSession session, TextMessage webSocketMessage) {
         var chargeBoxId = getChargeBoxId(session);
         var version = getVersion(session);
 
@@ -98,10 +95,11 @@ public class WebSocketEndpoint extends ConcurrentWebSocketHandler implements Sub
             chargeBoxId,
             version.toProtocol(OcppTransport.JSON),
             session.getId(),
+            Instant.now(),
             incomingString
         );
 
-        incomingPipeline.accept(inMsg);
+        inProducer.send(MessageBuilder.withPayload(inMsg).build());
     }
 
     private void handlePongMessage(WebSocketSession session) {
@@ -109,8 +107,16 @@ public class WebSocketEndpoint extends ConcurrentWebSocketHandler implements Sub
         ocppServerRepository.updateChargeboxHeartbeat(getChargeBoxId(session), DateTime.now());
     }
 
+    private void handleBinaryMessage(WebSocketSession session) {
+        try {
+            session.close(CloseStatus.NOT_ACCEPTABLE.withReason("Binary messages not supported"));
+        } catch (IOException e) {
+            WebSocketLogger.closingError(getChargeBoxId(session), session, e);
+        }
+    }
+
     @Override
-    public void onOpen(WebSocketSession session) throws Exception {
+    public void onOpen(WebSocketSession session) {
         var chargeBoxId = getChargeBoxId(session);
         var version = getVersion(session);
 
@@ -129,7 +135,7 @@ public class WebSocketEndpoint extends ConcurrentWebSocketHandler implements Sub
     }
 
     @Override
-    public void onClose(WebSocketSession session, CloseStatus closeStatus) throws Exception {
+    public void onClose(WebSocketSession session, CloseStatus closeStatus) {
         var chargeBoxId = getChargeBoxId(session);
         var version = getVersion(session);
 
@@ -146,7 +152,7 @@ public class WebSocketEndpoint extends ConcurrentWebSocketHandler implements Sub
     }
 
     @Override
-    public void onError(WebSocketSession session, Throwable throwable) throws Exception {
+    public void onError(WebSocketSession session, Throwable throwable) {
         WebSocketLogger.transportError(getChargeBoxId(session), session, throwable);
     }
 
